@@ -20,3 +20,11 @@ Validar y ejecutar el playbook:
 
     ansible-playbook -i inventory.ini playbook.yml --syntax-check
     ansible-playbook -i inventory.ini playbook.yml
+
+## Reto adicional: Docker
+
+El playbook playbook-docker.yml instala Docker Engine desde el repositorio oficial de Docker (no el paquete docker.io de Ubuntu, que esta desactualizado) y agrega el usuario al grupo docker.
+
+    ansible-playbook -i inventory.ini playbook-docker.yml
+
+Es idempotente: la segunda ejecucion reporta changed=0.
