@@ -1,0 +1,49 @@
+name: Ansible CI/CD
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  syntax:
+    name: Validar sintaxis
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clonar el repo
+        uses: actions/checkout@v4
+
+      - name: Instalar Ansible
+        run: sudo apt-get update && sudo apt-get install -y ansible
+
+      - name: Syntax check
+        run: |
+          ansible-playbook -i inventory.ini playbook.yml --syntax-check
+          ansible-playbook -i inventory.ini playbook-docker.yml --syntax-check
+
+  deploy:
+    name: Aplicar en el servidor
+    needs: syntax
+    if: github.event_name == 'push'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Clonar el repo
+        uses: actions/checkout@v4
+
+      - name: Instalar Ansible
+        run: sudo apt-get update && sudo apt-get install -y ansible
+
+      - name: Preparar llave SSH
+        run: |
+          mkdir -p ~/.ssh
+          echo "${{ secrets.SSH_PRIVATE_KEY }}" > ~/.ssh/id_ed25519
+          chmod 600 ~/.ssh/id_ed25519
+          ssh-keyscan -H ${{ secrets.SERVER_HOST }} >> ~/.ssh/known_hosts
+
+      - name: Ejecutar playbooks
+        run: |
+          ansible-playbook -i inventory.ini playbook.yml -e ansible_ssh_private_key_file=$HOME/.ssh/id_ed25519
+          ansible-playbook -i inventory.ini playbook-docker.yml -e ansible_ssh_private_key_file=$HOME/.ssh/id_ed25519
