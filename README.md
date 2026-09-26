@@ -363,37 +363,6 @@ que es lo que pedía el reto.
 
 ---
 
-## Conceptos
-
-| Concepto | Qué es, en este proyecto |
-| --- | --- |
-| **Control Node** | La máquina desde donde se ejecuta Ansible: la laptop. Ansible solo se instala aquí, no en el servidor. |
-| **Inventory** | El archivo que declara qué máquinas administrar y cómo conectarse: `inventory.ini`. |
-| **Grupo de hosts** | Una etiqueta que agrupa servidores: `[webserver]`. Un solo comando configura todos los hosts del grupo. |
-| **Módulo** | La unidad de trabajo: `apt`, `service`, `file`, `user`, `get_url`. Cada uno sabe cómo llevar una cosa al estado pedido. |
-| **Comando ad-hoc** | Una acción puntual desde la terminal, sin archivo. Útil para diagnóstico o cambios rápidos. |
-| **Playbook** | Archivo YAML versionado con la configuración completa. Reproducible y auditable, a diferencia del ad-hoc. |
-| **become** | Ejecutar con privilegios elevados (sudo). Sin él, `apt` falla por permisos. |
-| **Idempotencia** | Ejecutar N veces deja el mismo resultado que ejecutar una. Demostrado arriba: `changed=4` → `changed=0`. |
-
----
-
-## Uso
-
-```bash
-# Probar la conexión
-ansible webserver -i inventory.ini -m ansible.builtin.ping
-
-# Validar y ejecutar el playbook principal
-ansible-playbook -i inventory.ini playbook.yml --syntax-check
-ansible-playbook -i inventory.ini playbook.yml
-
-# Reto adicional: Docker
-ansible-playbook -i inventory.ini playbook-docker.yml
-```
-
----
-
 ## 9. CI/CD con GitHub Actions
 
 ```
@@ -553,3 +522,34 @@ Lectura de la evidencia:
 
 > `pythonapp` también aparece como `active`, pero ese servicio no lo gestiona este
 > proyecto: pertenece al repositorio `python-web-app` y comparte el mismo servidor.
+
+---
+
+## Conceptos
+
+| Concepto | Qué es, en este proyecto |
+| --- | --- |
+| **Control Node** | La máquina desde donde se ejecuta Ansible: la laptop. Ansible solo se instala aquí, no en el servidor. |
+| **Inventory** | El archivo que declara qué máquinas administrar y cómo conectarse: `inventory.ini`. |
+| **Grupo de hosts** | Una etiqueta que agrupa servidores: `[webserver]`. Un solo comando configura todos los hosts del grupo. |
+| **Módulo** | La unidad de trabajo: `apt`, `service`, `file`, `user`, `get_url`. Cada uno sabe cómo llevar una cosa al estado pedido. |
+| **Comando ad-hoc** | Una acción puntual desde la terminal, sin archivo. Útil para diagnóstico o cambios rápidos. |
+| **Playbook** | Archivo YAML versionado con la configuración completa. Reproducible y auditable, a diferencia del ad-hoc. |
+| **become** | Ejecutar con privilegios elevados (sudo). Sin él, `apt` falla por permisos. |
+| **Idempotencia** | Ejecutar N veces deja el mismo resultado que ejecutar una. Demostrado arriba: `changed=4` → `changed=0`. |
+
+---
+
+## Uso
+
+```bash
+# Probar la conexión
+ansible webserver -i inventory.ini -m ansible.builtin.ping
+
+# Validar y ejecutar el playbook principal
+ansible-playbook -i inventory.ini playbook.yml --syntax-check
+ansible-playbook -i inventory.ini playbook.yml
+
+# Reto adicional: Docker
+ansible-playbook -i inventory.ini playbook-docker.yml
+```
