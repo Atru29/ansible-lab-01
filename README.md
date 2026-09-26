@@ -391,3 +391,165 @@ ansible-playbook -i inventory.ini playbook.yml
 # Reto adicional: Docker
 ansible-playbook -i inventory.ini playbook-docker.yml
 ```
+
+---
+
+## 9. CI/CD con GitHub Actions
+
+```
+Repositorio Ansible  →  push a main  →  GitHub-hosted runner  →  SSH · puerto 22  →  Servidor destino
+                                         ubuntu-latest                                cambios aplicados
+                                         ansible-playbook
+```
+
+El workflow `.github/workflows/ansible.yml` tiene dos jobs encadenados:
+
+| Job | Cuándo corre | Qué hace |
+| --- | --- | --- |
+| `Validar sintaxis` | Pull Request **y** push | `--syntax-check` de ambos playbooks. No toca el servidor. Es el **CI**. |
+| `Aplicar en el servidor` | solo push a `main`, vía `if: github.event_name == 'push'` | Escribe la llave SSH desde el Secret y ejecuta los dos playbooks. Es el **CD**. |
+
+Secrets configurados en el repositorio: `SSH_PRIVATE_KEY` y `SERVER_HOST`.
+
+La ruta de la llave se sobreescribe con `-e ansible_ssh_private_key_file=$HOME/.ssh/id_ed25519`,
+porque en el runner la llave no vive en la misma ruta que en la laptop. Las *extra vars* (`-e`)
+tienen la precedencia más alta en Ansible, así el mismo `inventory.ini` sirve en los dos entornos
+sin modificarlo.
+
+### Evidencia: en el Pull Request solo corre el CI
+
+```
+All checks have passed — 1 skipped, 1 successful check
+
+  ⊘  Ansible CI/CD / Aplicar en el servidor (pull_request)   Skipped
+  ✓  Ansible CI/CD / Validar sintaxis (pull_request)         Successful in 45s
+```
+
+### Evidencia: al mergear a main corre el CD
+
+Comando que ejecuta el runner:
+
+```
+Run ansible-playbook -i inventory.ini playbook.yml -e ansible_ssh_private_key_file=$HOME/.ssh/id_ed25519
+```
+
+Salida del primer playbook:
+
+```
+PLAY [Configure web server] ****************************************************
+
+TASK [Gathering Facts] *********************************************************
+ok: [server1]
+
+TASK [Update apt cache] ********************************************************
+changed: [server1]
+
+TASK [Install Nginx] ***********************************************************
+ok: [server1]
+
+TASK [Install dig] *************************************************************
+ok: [server1]
+
+TASK [Install Node.js] *********************************************************
+ok: [server1]
+
+TASK [Start and enable Nginx] **************************************************
+ok: [server1]
+
+PLAY RECAP *********************************************************************
+server1                    : ok=6    changed=1    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0
+```
+
+Salida del playbook de Docker:
+
+```
+PLAY [Install Docker] **********************************************************
+
+TASK [Gathering Facts] *********************************************************
+ok: [server1]
+
+TASK [Install prerequisites] ***************************************************
+ok: [server1]
+
+TASK [Create keyrings directory] ***********************************************
+ok: [server1]
+
+TASK [Download Docker GPG key] *************************************************
+ok: [server1]
+
+TASK [Add Docker repository] ***************************************************
+ok: [server1]
+
+TASK [Install Docker Engine] ***************************************************
+ok: [server1]
+
+TASK [Start and enable Docker] *************************************************
+ok: [server1]
+
+TASK [Add user to docker group] ************************************************
+ok: [server1]
+
+PLAY RECAP *********************************************************************
+server1                    : ok=8    changed=0    unreachable=0    failed=0    skipped=0    rescued=0    ignored=0
+```
+
+`changed=0` en el segundo playbook: el pipeline aplicó la configuración y el servidor
+ya estaba en el estado deseado. La idempotencia se cumple también desde CI/CD, no solo
+al ejecutar Ansible desde la laptop.
+
+---
+
+## 10. Verificación directa en el servidor
+
+Comprobación del estado final entrando por SSH a la VM, **sin pasar por Ansible**:
+lo que sigue es lo que realmente quedó instalado y corriendo en la máquina.
+
+```bash
+ssh arturo@34.27.206.248
+```
+
+```bash
+systemctl is-active nginx docker pythonapp
+nginx -v; node --version; dig -v; docker --version; htop --version
+id arturo
+docker ps -a --format "table {{.Image}}\t{{.Status}}"
+```
+
+Salida:
+
+```
+=== Servicios ===
+active
+active
+active
+
+=== Versiones ===
+nginx version: nginx/1.24.0 (Ubuntu)
+v18.19.1
+DiG 9.18.39-0ubuntu0.24.04.7-Ubuntu
+Docker version 29.8.1, build 4a63305
+htop 3.3.0
+
+=== Grupos de arturo ===
+uid=1001(arturo) gid=1002(arturo) groups=1002(arturo),4(adm),20(dialout),24(cdrom),
+25(floppy),29(audio),30(dip),44(video),46(plugdev),105(lxd),111(netdev),1000(ubuntu),
+1001(google-sudoers),988(docker)
+
+=== Docker funcionando ===
+IMAGE     STATUS
+```
+
+Lectura de la evidencia:
+
+| Comprobación | Resultado | Qué demuestra |
+| --- | --- | --- |
+| `systemctl is-active nginx` | `active` | La tarea *Start and enable Nginx* del playbook surtió efecto |
+| `systemctl is-active docker` | `active` | La tarea *Start and enable Docker* surtió efecto |
+| `node --version` | `v18.19.1` | La tarea *Install Node.js* instaló el paquete |
+| `dig -v` | `DiG 9.18.39` | La tarea *Install dig* instaló `dnsutils` |
+| `htop 3.3.0` | instalado | Resultado del comando **ad-hoc**, no del playbook |
+| `id arturo` incluye `988(docker)` | ✅ | La tarea *Add user to docker group* funcionó: `arturo` puede usar Docker sin `sudo` |
+| `docker ps -a` vacío | ✅ | Correcto: el contenedor de prueba se ejecutó con `--rm`, así que se borró al terminar |
+
+> `pythonapp` también aparece como `active`, pero ese servicio no lo gestiona este
+> proyecto: pertenece al repositorio `python-web-app` y comparte el mismo servidor.
